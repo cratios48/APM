@@ -10,7 +10,77 @@
         yum: name=httpd state=latest
 
       - name: Insert message into index.html
-        shell: echo 'Nice work! Message inserted succesfully' > /var/www/html/index.html
+        lineinfile:
+          destfile: "/var/www/html/index.html"
+          state: present
+          line: 'Nice work! Apache is up.'
+          mode: 0644
+          owner: apache
+          group: apache
+          create: yes
       
       - name: Activate httpd
         service: name=httpd state=restarted enabled=yes 
+
+      - name: Install PHP
+        yum: name=php state=latest
+
+      - name: Install MariaDB
+        yum: name={{ item }} state=latest
+        with_items:
+          - mariadb
+          - mariadb-server
+      
+      - name: Connect php and mysql
+        yum: name={{ item }} state=latest
+        with_items:
+          - php-mysql
+          - php-odbc
+          - php-pdo
+
+      - name: Activate MariaDB
+        service: name=mariadb state=restarted enabled=yes
+
+      - name: Dependency of python for MySQL
+        yum: name=MySQL-python state=latest
+
+      - name: Create test DB in MariaDB
+        mysql_db:
+          name: test
+          state: present
+
+      - name: Erase anonymous user in DBMS
+        mysql_user:
+          name: ''
+          state: absent
+
+      - name: Create test user for test DB
+        mysql_user:
+          name: test
+          password: test1234
+          priv: 'test.*:ALL'
+          state: present
+        
+      - name: Add phpinfo page
+        lineinfile:
+          destfile: "/var/www/html/phpinfo.php"
+          line: '<?php phpinfo() ?>'
+          state: present
+          mode: 0644
+          owner: apache
+          group: apache
+          create: yes
+
+      - name: Copy php - db connection test page
+        copy:
+          src: ./conn_test.php
+          dest: /var/www/html/
+          owner: apache
+          group: apache
+          mode: 0644 
+      
+      - name: Restart Apache and MariaDB
+        service: name={{ item }} state=restarted
+        with_items:
+          - httpd
+          - mariadb
